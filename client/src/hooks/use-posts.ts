@@ -19,12 +19,29 @@ export function useGeneratePost() {
         const error = await res.json().catch(() => ({}));
         throw new Error(error.message || "Failed to generate post");
       }
-      return res.json() as Promise<{
-        variations: string[];
+
+      const parsed = await res.json();
+
+      // FIRE AND FORGET HISTORY SAVE
+      const token = localStorage.getItem("token");
+      if (token) {
+        fetch("/api/history/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            type: "generate",
+            inputText: data.topic,
+            outputs: parsed.variations.map((v: any) => typeof v === 'string' ? { text: v } : { content: v.content, text: v.content, imageUrl: v.imageUrl })
+          })
+        }).catch(err => console.error("History save error:", err));
+      }
+
+      return parsed as {
+        variations: any[];
         tone: string;
         originalPrompt: string;
         images?: string[];
-      }>;
+      };
     },
     onError: (error: Error) => {
       toast({
@@ -53,12 +70,27 @@ export function useRefinePost() {
         const error = await res.json().catch(() => ({}));
         throw new Error(error.message || "Failed to refine post");
       }
-      return res.json() as Promise<{
+      const parsed = await res.json();
+
+      const token = localStorage.getItem("token");
+      if (token && parsed.variations) {
+        fetch("/api/history/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            type: "improve",
+            inputText: data.draft,
+            outputs: parsed.variations.map((v: any) => typeof v === 'string' ? { text: v } : { content: v.content, text: v.content, imageUrl: v.imageUrl })
+          })
+        }).catch(err => console.error("History save error:", err));
+      }
+
+      return parsed as {
         content: string;
         suggestions?: string;
-        variations?: string[];
+        variations?: any[];
         images?: string[];
-      }>;
+      };
     },
     onError: (error: Error) => {
       toast({

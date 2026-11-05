@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import mongoose from "mongoose";
 
 const app = express();
 const httpServer = createServer(app);
@@ -15,13 +16,14 @@ declare module "http" {
 
 app.use(
   express.json({
+    limit: '50mb',
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -61,6 +63,13 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  try {
+    await mongoose.connect('mongodb://localhost:27017/PostCraft-AI');
+    log("Connected to MongoDB via mongoose");
+  } catch (err) {
+    console.error("Failed to connect to MongoDB:", err);
+  }
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

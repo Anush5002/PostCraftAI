@@ -4,6 +4,8 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { GoogleGenAI } from "@google/genai";
 import { generateImageFromText } from "./infip";
+import { authRouter } from "./auth";
+import { historyRouter } from "./history";
 
 // Use direct Gemini API with your own API key from .env
 const ai = new GoogleGenAI({
@@ -47,7 +49,7 @@ Do NOT include text, logos, or watermarks in the image.
 USER TOPIC: "${content}"
 
 Output only the final image prompt.`;
-    
+
     const result = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
@@ -63,6 +65,9 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  app.use('/api/auth', authRouter);
+  app.use('/api/history', historyRouter);
 
   app.post(api.posts.generate.path, async (req, res) => {
     try {
@@ -86,7 +91,7 @@ IMPORTANT: Use 2-4 relevant emojis throughout the post to make it visually engag
             try {
               // ALWAYS extract from original topic, NOT generated post content
               const visualSubject = await extractVisualSubject(input.topic);
-              const imagePrompt = `A breathtaking cinematic photograph of ${visualSubject}. Style: Photorealistic, 8k, detailed textures, professional lighting. STRICTLY NO TEXT, NO WORDS, NO LETTERS, NO SIGNAGE, NO LABELS. PURE VISUAL ONLY.`;
+              const imagePrompt = `A breathtaking cinematic photograph of ${visualSubject}. Style: Photorealistic, 8k, detailed textures, professional lighting, clean composition.`;
               const images = await generateImageFromText(imagePrompt);
               imageUrl = images[0];
             } catch (err) {
@@ -103,41 +108,41 @@ IMPORTANT: Use 2-4 relevant emojis throughout the post to make it visually engag
 
       // Define our available generation tasks
       const geminiTask = () => ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: prompt,
+        model: "gemini-2.5-flash",
+        contents: prompt,
       }).then(res => res.text || "");
-      
+
       const groqTask = () => fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [{role: 'user', content: prompt}]
-          })
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }]
+        })
       }).then(res => {
-          if (!res.ok) throw new Error("Groq API Error");
-          return res.json();
+        if (!res.ok) throw new Error("Groq API Error");
+        return res.json();
       }).then(data => data.choices[0].message.content);
 
       const nvidiaTask = () => fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'qwen/qwen3-next-80b-a3b-instruct',
-            messages: [{role: 'user', content: prompt}],
-            temperature: 0.6,
-            top_p: 0.7,
-            max_tokens: 4096,
-          })
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'qwen/qwen3-next-80b-a3b-instruct',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.6,
+          top_p: 0.7,
+          max_tokens: 4096,
+        })
       }).then(res => {
-          if (!res.ok) throw new Error("NVIDIA API Error");
-          return res.json();
+        if (!res.ok) throw new Error("NVIDIA API Error");
+        return res.json();
       }).then(data => data.choices[0].message.content);
 
       // Execute primary batch
@@ -230,7 +235,7 @@ Output only valid JSON.`;
             try {
               // ALWAYS extract from original draft, NOT refined content
               const visualConcept = await extractVisualSubject(input.draft);
-              const imagePrompt = `A premium cinematic photograph of ${visualConcept}. Masterpiece composition, realistic lighting. STRICTLY NO TEXT, NO WORDS, NO LETTERS, NO NUMBERS. PURE VISUAL ONLY.`;
+              const imagePrompt = `A premium cinematic photograph of ${visualConcept}. Masterpiece composition, realistic lighting, highly detailed.`;
               const images = await generateImageFromText(imagePrompt);
               imageUrl = images[0];
             } catch (err) {
@@ -246,42 +251,42 @@ Output only valid JSON.`;
       };
 
       const geminiTask = () => ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: prompt,
+        model: "gemini-2.5-flash",
+        contents: prompt,
       }).then(res => res.text || "");
 
       const groqTask = () => fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [{role: 'user', content: prompt}],
-            response_format: { type: "json_object" }
-          })
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: "json_object" }
+        })
       }).then(res => {
-          if (!res.ok) throw new Error("Groq API Error");
-          return res.json();
+        if (!res.ok) throw new Error("Groq API Error");
+        return res.json();
       }).then(data => data.choices[0].message.content);
 
       const nvidiaTask = () => fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'qwen/qwen3-next-80b-a3b-instruct',
-            messages: [{role: 'user', content: prompt}],
-            temperature: 0.6,
-            top_p: 0.7,
-            max_tokens: 4096,
-          })
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'qwen/qwen3-next-80b-a3b-instruct',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.6,
+          top_p: 0.7,
+          max_tokens: 4096,
+        })
       }).then(res => {
-          if (!res.ok) throw new Error("NVIDIA API Error");
-          return res.json();
+        if (!res.ok) throw new Error("NVIDIA API Error");
+        return res.json();
       }).then(data => data.choices[0].message.content);
 
 
@@ -329,14 +334,14 @@ Output only valid JSON.`;
     try {
       const input = req.body; // Using req.body directly to handle extra fields like isImprovement
       const { topic, isImprovement } = input;
-      
+
       const visualSubject = await extractVisualSubject(topic);
-      
+
       let imagePrompt = "";
       if (isImprovement) {
-        imagePrompt = `An ultra-HD cinematic refinement of: ${visualSubject}. Photorealistic detail, professional lighting. ABSOLUTELY NO TEXT. NO LETTERS. NO FONTS. NO ALPHABET. PURE VISUAL.`;
+        imagePrompt = `An ultra-HD cinematic refinement of: ${visualSubject}. Photorealistic detail, professional lighting, masterpiece composition.`;
       } else {
-        imagePrompt = `A high-quality cinematic photograph of ${visualSubject}. Style: Professional, clean, photorealistic. STRICTLY NO TEXT. NO LETTERS. Symbolic and engaging.`;
+        imagePrompt = `A high-quality cinematic photograph of ${visualSubject}. Style: Professional, clean, photorealistic, symbolic and engaging.`;
       }
 
       let images: string[] = [];
@@ -373,15 +378,15 @@ Modify the post exactly as requested and output only the new post text. Use 2-4 
 
       // Helper logic
       const runGroq = () => fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{role: 'user', content: prompt}] })
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: prompt }] })
       }).then(res => res.ok ? res.json() : Promise.reject()).then(data => data.choices[0].message.content);
 
       const runNvidia = () => fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'qwen/qwen3-next-80b-a3b-instruct', messages: [{role: 'user', content: prompt}] })
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'qwen/qwen3-next-80b-a3b-instruct', messages: [{ role: 'user', content: prompt }] })
       }).then(res => res.ok ? res.json() : Promise.reject()).then(data => data.choices[0].message.content);
 
       const runGemini = () => ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt }).then(res => res.text || "");
@@ -393,15 +398,15 @@ Modify the post exactly as requested and output only the new post text. Use 2-4 
         else if (input.provider === "gemini") finalContent = await runGemini();
         else {
           // Fallback if 'original-draft' edited, defaults to Groq as it is fastest
-          finalContent = await runGroq(); 
+          finalContent = await runGroq();
         }
       } catch (targetedError) {
         console.warn(`[Targeted Edit] Targeted provider ${input.provider} failed! Bouncing to Fallback loop...`);
         // Step 2. If their specific provider quota limits, default to the cascading safety loop we built
-        try { finalContent = await runGroq(); } catch(e1) {
+        try { finalContent = await runGroq(); } catch (e1) {
           try { finalContent = await runNvidia(); } catch (e2) {
-            try { finalContent = await runGemini(); } catch(e3) {
-               console.error("ALL Providers exhausted during edit fallback.");
+            try { finalContent = await runGemini(); } catch (e3) {
+              console.error("ALL Providers exhausted during edit fallback.");
             }
           }
         }
